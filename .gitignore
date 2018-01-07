@@ -1,0 +1,7 @@
+*.*
+!define/**
+!net/**
+!train/**
+!utils/**
+!.gitignore
+!*.py
