@@ -1,10 +1,13 @@
-import random
+from io import BytesIO
 
 import os
+from PIL import Image
 
 from define.Const import TYPE_LOGIN_NORMAL_WAY, TYPE_LOGIN_OTHER_WAY
-from define.UserAgent import USER_AGENT, FIREFOX_USER_AGENT
+from define.UrlsConf import loginUrls
+from define.UserAgent import FIREFOX_USER_AGENT
 from net import NetUtils
+from net.NetUtils import EasyHttp
 from train.login import damatuWeb
 from utils import FileUtils
 from utils.Log import Log
@@ -15,23 +18,10 @@ class Captcha(object):
     __REPONSE_OHTER_CDOE_SUCCESSFUL = '1'
     __CAPTCHA_PATH = 'captcha.jpg'
 
-    def __init__(self, session):
-        self.__session = session
-
     def getCaptcha(self, type=TYPE_LOGIN_NORMAL_WAY):
-        url = r'https://kyfw.12306.cn/otn/passcodeNew/getPassCodeNew?module=login&rand=sjrand&{}' \
-            .format(random.random()) if type == TYPE_LOGIN_OTHER_WAY \
-            else r'https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login' \
-                 r'&rand=sjrand&{}'.format(random.random())
-        print('catpchatImgURL: %s' % url)
-        headers = {
-            'Referer': r'https://kyfw.12306.cn/otn/login/init',
-            'User-Agent': FIREFOX_USER_AGENT,
-        }
-        response = NetUtils.get(self.__session, url, headers=headers, verify=False)
-        if response:
-            return FileUtils.saveBinary(Captcha.__CAPTCHA_PATH, response.content)
-        return None
+        urlInfo = loginUrls['other']['captcha'] if type == TYPE_LOGIN_OTHER_WAY else loginUrls['normal']['captcha']
+        print('catpchatImgURL: %s' % urlInfo['url'])
+        return EasyHttp.send(urlInfo)
 
     def check(self, results, type=TYPE_LOGIN_NORMAL_WAY):
         if type == TYPE_LOGIN_OTHER_WAY:
@@ -39,60 +29,69 @@ class Captcha(object):
         return self._captchaCheck(results)
 
     def _checkRandCodeAnsyn(self, results):
-        url = r'https://kyfw.12306.cn/otn/passcodeNew/checkRandCodeAnsyn'
         formData = {
             'randCode': results,
             'rand': 'sjrand',
         }
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Content-Type': r'application/x-www-form-urlencoded; charset=UTF-8',
-            'Referer': r'https://kyfw.12306.cn/otn/login/init',
-        }
-        response = NetUtils.post(self.__session, url, data=formData, headers=headers)
-        print('checkCodeAsync: %s' % response.text)
-        response = response.json()
+        jsonRet = EasyHttp.send(loginUrls['other']['captchaCheck'], data=formData)
+        print('checkRandCodeAnsyn: %s' %jsonRet)
 
         def verify(response):
             return response['status'] and Captcha.__REPONSE_OHTER_CDOE_SUCCESSFUL == response['data']['result']
 
-        return verify(response)
+        return verify(jsonRet)
 
     def _captchaCheck(self, results):
-        url = r'https://kyfw.12306.cn/passport/captcha/captcha-check'
         data = {
             'answer': results,
             'login_site': 'E',
             'rand': 'sjrand',
         }
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Content-Type': r'application/x-www-form-urlencoded; charset=UTF-8',
-            'Referer': r'https://kyfw.12306.cn/otn/login/init',
-        }
-        response = NetUtils.post(self.__session, url, data=data, headers=headers)
-        print('captchaCheck: %s' % response.text)
-        response = response.json()
+        jsonRet = EasyHttp.send(loginUrls['normal']['captchaCheck'], data=data)
+        print('captchaCheck: %s' %jsonRet)
 
         def verify(response):
-            return Captcha.__REPONSE_NORMAL_CDOE_SUCCESSFUL == response['result_code'] if 'result_code' in response else False
+            return Captcha.__REPONSE_NORMAL_CDOE_SUCCESSFUL == response[
+                'result_code'] if 'result_code' in response else False
 
-        return verify(response)
+        return verify(jsonRet)
 
-    def verifyCaptchaByClound(self):
-        self.getCaptcha()
+    def verifyCaptchaByClound(self, type=TYPE_LOGIN_NORMAL_WAY):
+        captchaContent = self.getCaptcha(type)
+        if captchaContent:
+            FileUtils.saveBinary(Captcha.__CAPTCHA_PATH, captchaContent)
+        else:
+            Log.e('failed to save captcha')
+            return None
         results = damatuWeb.verify(Captcha.__CAPTCHA_PATH)
-        results = self.__transCaptchaResults(results)
+        results = self.__cloundTransCaptchaResults(results)
         Log.v('captchaResult: %s' % results)
-        return results,self.check(results)
+        return results, self.check(results)
 
     def verifyCaptchaByHand(self, type=TYPE_LOGIN_NORMAL_WAY):
-        print('captcha_path: %s%s' % (os.getcwd(), self.getCaptcha().name))
-        results = input('输入验证码: ')
+        img = Image.open(BytesIO(self.getCaptcha(type)))
+        img.show()
+        Log.v(
+            """ 
+            -----------------
+            | 0 | 1 | 2 | 3 |
+            -----------------
+            | 4 | 5 | 6 | 7 |
+            ----------------- """)
+        results = input("输入验证码索引(见上图，以','分割）: ")
+        img.close()
+        results = self.__indexTransCaptchaResults(results)
         Log.v('captchaResult: %s' % results)
-        return results,self.check(results,type)
+        return results, self.check(results, type)
 
-    def __transCaptchaResults(self, results):
+    def __indexTransCaptchaResults(self, indexes, sep=r','):
+        coordinates = ['40,40', '110,40', '180,40', '250,40', '40,110', '110,110', '180,110', '250,110']
+        results = []
+        for index in indexes.split(sep=sep):
+            results.append(coordinates[int(index)])
+        return ','.join(results)
+
+    def __cloundTransCaptchaResults(self, results):
         if type(results) != str:
             return ''
         offsetY = 30

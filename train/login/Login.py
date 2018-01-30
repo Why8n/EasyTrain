@@ -1,203 +1,130 @@
 from pprint import pprint
 
+import requests
+import time
+
 from define.Const import TYPE_LOGIN_NORMAL_WAY, TYPE_LOGIN_OTHER_WAY
 from define.UserAgent import FIREFOX_USER_AGENT
 from net import NetUtils
 from train.login.Capthca import Captcha
 from utils import Utils
 from utils.Log import Log
+from net.NetUtils import EasyHttp
+from define.UrlsConf import loginUrls
 
 
 class Login(object):
     __LOGIN_SUCCESS_RESULT_CODE = 0
 
-    def __init__(self, session):
-        self.__session = session
-
     def _passportRedirect(self):
-        url = r'https://kyfw.12306.cn/otn/passport?redirect=/otn/login/userLogin'
         params = {
             'redirect': '/otn/login/userLogin',
         }
-        headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': 'https://kyfw.12306.cn/otn/login/init',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        }
-        NetUtils.get(self.__session, url, params=params, headers=headers)
+        EasyHttp.send(self._urlInfo['userLoginRedirect'])
 
     def _userLogin(self):
-        url = r'https://kyfw.12306.cn/otn/login/userLogin'
         params = {
             '_json_att': '',
         }
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Referer': 'https://kyfw.12306.cn/otn/login/init',
-        }
-        NetUtils.get(self.__session, url, params=params, headers=headers)
+        EasyHttp.send(self._urlInfo['userLogin'])
 
     def _uamtk(self):
-        url = r'https://kyfw.12306.cn/passport/web/auth/uamtk'
-        headers = {
-            'Referer': r'https://kyfw.12306.cn/otn/passport?redirect=/otn/login/userLogin',
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Connection': 'keep-alive',
-        }
-        response = NetUtils.post(self.__session, url, data={'appid': 'otn'}).json()
+        jsonRet = EasyHttp.send(self._urlInfo['uamtk'], data={'appid': 'otn'})
 
         def isSuccess(response):
             return response['result_code'] == 0 if 'result_code' in response else False
 
-        return isSuccess(response), \
-               response['result_message'] if 'result_message' in response else 'no result_message', \
-               response['newapptk'] if 'newapptk' in response else 'no newapptk'
+        return isSuccess(jsonRet), \
+               jsonRet['result_message'] if 'result_message' in jsonRet else 'no result_message', \
+               jsonRet['newapptk'] if 'newapptk' in jsonRet else 'no newapptk'
 
     def _uamauthclient(self, apptk):
-        url = r'https://kyfw.12306.cn/otn/uamauthclient'
-        headers = {
-            'Referer': r'https://kyfw.12306.cn/otn/passport?redirect=/otn/login/userLogin',
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Connection': 'keep-alive',
-        }
-        response = NetUtils.post(self.__session, url, data={'tk': apptk}, headers=headers)
-        print(response.text)
-        response = response.json()
+        jsonRet = EasyHttp.send(self._urlInfo['uamauthclient'], data={'tk': apptk})
+        print(jsonRet)
 
         def isSuccess(response):
-            return response['result_code'] == 0 if 'result_code' in response else False
+            return response['result_code'] == 0 if response and 'result_code' in response else False
 
-        return isSuccess(response), '%s:%s' % (response['username'], response['result_message'])
+        return isSuccess(jsonRet), '%s:%s' % (jsonRet['username'], jsonRet['result_message']) if jsonRet \
+            else 'uamauthclient failed'
 
-    def login(self, userName, userPwd, type=TYPE_LOGIN_NORMAL_WAY):
+    def login(self, userName, userPwd):
+        # 登录有两种api
+        for count in range(2):
+            result, msg = self._login(userName, userPwd, type=(count % 2))
+            if Utils.check(result, msg):
+                return result, msg
+        return False, '登录失败'
+
+    def _login(self, userName, userPwd, type=TYPE_LOGIN_NORMAL_WAY):
         if type == TYPE_LOGIN_OTHER_WAY:
+            self._urlInfo = loginUrls['other']
             return self._loginAsyncSuggest(userName, userPwd)
+        self._urlInfo = loginUrls['normal']
         return self._loginNormal(userName, userPwd)
 
     def _loginNormal(self, userName, userPwd):
-        url = r'https://kyfw.12306.cn/passport/web/login'
-        captcha = Captcha(self.__session)
-        if not captcha.verifyCaptchaByHand()[1]:
+        self._init()
+        self._uamtk()
+        if not Captcha().verifyCaptchaByHand()[1]:
             return False, '验证码识别错误!'
-        headers = {
-            'Referer': r'https://kyfw.12306.cn/otn/login/init',
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Connection': 'keep-alive',
-            'Content-Type': r'application/x-www-form-urlencoded; charset=UTF-8',
-        }
         payload = {
             'username': userName,
             'password': userPwd,
             'appid': 'otn',
         }
-        response = NetUtils.post(self.__session, url, data=payload, headers=headers)
-        response = response.json() if response else None
-        Log.v('loginResponse: %s' % response)
+        jsonRet = EasyHttp.send(self._urlInfo['login'], data=payload)
 
         def isLoginSuccess(responseJson):
             return 0 == responseJson['result_code'] if responseJson and 'result_code' in responseJson else False
 
-        if not isLoginSuccess(response):
-            return False
+        if not isLoginSuccess(jsonRet):
+            return False, 'login failed'
+        # self._userLogin()
         self._passportRedirect()
-        self._userLogin()
         result, msg, apptk = self._uamtk()
         if not Utils.check(result, msg):
-            return False
+            return False, 'uamtk failed'
         return self._uamauthclient(apptk)
 
     def _loginAsyncSuggest(self, userName, userPwd):
-        captcha = Captcha(self.__session)
-        results, verify = captcha.verifyCaptchaByHand(type=TYPE_LOGIN_OTHER_WAY)
+        self._init()
+        results, verify = Captcha().verifyCaptchaByHand(type=TYPE_LOGIN_OTHER_WAY)
         if not verify:
             return False, '验证码识别错误!'
-        url = r'https://kyfw.12306.cn/otn/login/loginAysnSuggest'
         formData = {
             'loginUserDTO.user_name': userName,
             'userDTO.password': userPwd,
             'randCode': results,
         }
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/login/init',
-            'Connection': 'keep-alive',
-            'Content-Type': r'application/x-www-form-urlencoded; charset=UTF-8',
-        }
-        response = NetUtils.post(self.__session, url, data=formData, headers=headers)
-        print('loginAsyncSuggest: %s' % response.text)
-        response = response.json()
+        print('loginUrl:%s' % self._urlInfo['login']['url'])
+        jsonRet = EasyHttp.send(self._urlInfo['login'], data=formData)
+        print('loginAsyncSuggest: %s' % jsonRet)
 
         def isSuccess(response):
-            return response['status'] and response['data']['loginCheck'] == 'Y', response['data']['otherMsg']
+            return response['status'] and response['data']['loginCheck'] == 'Y' if 'data' in response else False, \
+                   response['data']['otherMsg'] if 'data' in response else response['messages']
 
-        loginSuccess, otherMsg = isSuccess(response)
+        loginSuccess, otherMsg = isSuccess(jsonRet)
         return loginSuccess, '%s:%s' % (userName, otherMsg or '登录成功!')
 
     def isLogin(self):
-        url = r'https://kyfw.12306.cn/otn/login/checkUser'
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/leftTicket/init',
-            'Connection': 'keep-alive',
-        }
         formData = {
             '_json_att': ''
         }
-        response = NetUtils.post(self.__session, url, formData, headers=headers)
-        response = response.json() if response else None
-        return response['data']['flag'] if response and 'data' in response and 'flag' in response[
+        jsonRet = EasyHttp.send(self._urlInfo['checkUser'])
+        Log.d('checkUser: %s' % jsonRet)
+        return jsonRet['data']['flag'] if jsonRet and 'data' in jsonRet and 'flag' in jsonRet[
             'data'] else False
 
-    def logOut(self):
-        self._loginOut()
+    def loginOut(self):
+        EasyHttp.send(self._urlInfo['loginOut'])
         self._init()
-        url = r'https://kyfw.12306.cn/passport/web/auth/uamtk'
-        formData = {
-            'appid': 'otn',
-        }
-        headers = {
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Accept-Language': 'zh-CN,zh;q=0.9',
-            'Connection': 'keep-alive',
-            # 'Content-Length': '9',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Host': 'kyfw.12306.cn',
-            'Origin': 'https://kyfw.12306.cn',
-            'Referer': 'https://kyfw.12306.cn/otn/login/init',
-            'User-Agent': FIREFOX_USER_AGENT,
-            'X-Requested-With': 'XMLHttpRequest',
-            # 'Cookie':'_passport_session=3cae58f596b644f88b96ee8a448d9a737285; uamtk=7GdEj-S-9ZKfqcRkEjwCr6PLf4-SAiHRlY-wVm5sNnKizqTunx1210; RAIL_EXPIRATION=1515462916653; RAIL_DEVICEID=FH21u6JKmLVmsSwBvxOHIgRrgouY7azS3ENBUEL6aJKO9p3ou041Nv1QgAkLWHrWeeNJikYEgiZFKXUKXvaAJuRlxCN2sGDaKAkqZ2XKq8zhLtTpRZ8XcXkHXAdtirM4xzuuFesSAAWlg8gBZ37z_bF-N0VxtHo3; _jc_save_fromStation=%u6DF1%u5733%u5317%2CIOQ; _jc_save_toStation=%u6F6E%u6C55%2CCBQ; _jc_save_fromDate=2018-01-08; _jc_save_toDate=2018-01-08; _jc_save_showIns=true; _jc_save_wfdc_flag=dc; route=9036359bb8a8a461c164a04f8f50b252; BIGipServerotn=451936778.64545.0000; BIGipServerpool_passport=300745226.50215.0000'
-        }
-        response = NetUtils.post(self.__session, url, data=formData, headers=headers)
-        # response = NetUtils.NormalPost(url, data=formData, headers=headers)
-        pprint(response.request.headers)
-        print(response.text)
-        return response.json()
-
-    def _loginOut(self):
-        url = r'https://kyfw.12306.cn/otn/login/loginOut'
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/index/initMy12306',
-            'Connection': 'keep-alive',
-        }
-        NetUtils.get(self.__session, url, headers=headers)
+        return self._uamtk()
 
     def _init(self):
-        url = r'https://kyfw.12306.cn/otn/login/init'
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/index/initMy12306',
-            'Connection': 'keep-alive',
-        }
-        NetUtils.get(self.__session, url, headers=headers)
+        EasyHttp.send(self._urlInfo['init'])
 
 
 if __name__ == '__main__':
-    pass
+    print(Login(requests.session()).login('1041755134@qq.com', 'cylwin199111811'))

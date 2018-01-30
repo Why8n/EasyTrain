@@ -7,8 +7,10 @@ import time
 from datetime import datetime
 
 from define.Const import TourFlag
+from define.UrlsConf import submitUrls
 from define.UserAgent import FIREFOX_USER_AGENT
 from net import NetUtils
+from net.NetUtils import EasyHttp
 from train.submit.PassengerDetails import PassengerDetails
 from utils import TrainUtils
 from utils import Utils
@@ -16,34 +18,18 @@ from utils.Log import Log
 
 
 class Submit(object):
-    def __init__(self, session, ticketDetails):
-        self.__session = session
+    def __init__(self, ticketDetails):
         self.__ticket = ticketDetails
+        self._urlInfo = submitUrls['wc'] if self.__ticket.tourFlag == TourFlag.GO_BACK else \
+            submitUrls['dc']
 
     # submit orher request,check if the orher is qualified
     def _submitOrderRequest(self, tourFlag='dc'):
-        url = r'https://kyfw.12306.cn/otn/leftTicket/submitOrderRequest'
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            # 'Referer': r'https://kyfw.12306.cn/otn/leftTicket/init?random={}'.format(time.time() * 1000),
-            'Referer': 'https://kyfw.12306.cn/otn/leftTicket/init',
-            'Accept': r'*/*',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive',
-            # 'Content-Length':'444',
-            'Content-Type': r'application/x-www-form-urlencoded; charset=UTF-8',
-            'Host': r'kyfw.12306.cn',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Cache-Control': 'no-cache',
-            'If-Modified-Since': '0',
-        }
         formData = {
             'secretStr': TrainUtils.undecodeSecretStr(self.__ticket.secretStr),
             # 'secretStr': self.__ticket.secretStr,
             # 'secretStr': urllib.parse.unquote(self.__ticket.secretStr),
             'train_date': Utils.formatDate(self.__ticket.startDate),  # 2018-01-04
-            # todo::check time style
             'back_train_date': time.strftime("%Y-%m-%d", time.localtime()),  # query date:2017-12-31
             'tour_flag': tourFlag,
             'purpose_codes': self.__ticket.passengerType,
@@ -51,27 +37,19 @@ class Submit(object):
             'query_to_station_name': self.__ticket.toStation,
             'undefined': '',
         }
-        response = self.__session.post(url, formData, headers=headers)
-        # response = NetUtil.post(self.__session, url, formData, headers=headers)
-        print(response.text)
-        response = response.json()
-        result = response['status'] if 'status' in response else False
-        msg = response['messages'] if 'messages' in response else None  # list type
-        return result, msg
+        jsonRet = EasyHttp.send(self._urlInfo['submitOrderRequest'], data=formData)
+        print('submitOrderRequest %s' % jsonRet)
+        return jsonRet['status'], jsonRet['messages']
 
     def _getExtraInfo(self):
-        url = r'https://kyfw.12306.cn/otn/confirmPassenger/{}'.format(
-            '%s' % ('initWc' if self.__ticket.tourFlag == TourFlag.GO_BACK else 'initDc'))
-        print(url)
-
         def getRepeatSubmitToken(html):
             repeatSubmitToken = re.findall(r"var globalRepeatSubmitToken = '(.*)'", html)[0]
             print('RepeatSubmitToken = %s' % repeatSubmitToken)
             return repeatSubmitToken
 
-        html = NetUtils.get(self.__session, url,
-                            headers={'User-Agent': FIREFOX_USER_AGENT, 'Connection': 'keep-alive', }).text
-        # print('getExtraInfo', html)
+        html = EasyHttp.send(self._urlInfo['getExtraInfo'])
+        if not Utils.check(html, 'getExtraInfoUrl: failed to visit %s' % self._urlInfo['getExtraInfo']['url']):
+            return False
         self.__ticket.repeatSubmitToken = getRepeatSubmitToken(html)
 
         def decodeTicketInfoForPassengerForm(html):
@@ -79,6 +57,7 @@ class Submit(object):
             return json.loads(ticketInfoForPassengerForm.replace("'", "\""))
 
         self.__ticket.ticketInfoForPassengerForm = decodeTicketInfoForPassengerForm(html)
+        return True
 
     def __getPassengerInfo(self, passengersList):
         passengersDetails = {}
@@ -110,27 +89,22 @@ class Submit(object):
 
     # get user's passengers info
     def _getPassengerDTOs(self):
-        self._getExtraInfo()
-        url = r'https://kyfw.12306.cn/otn/confirmPassenger/getPassengerDTOs'
+        if not self._getExtraInfo():
+            return False, '获取乘客信息失败', None
         formData = {
             '_json_att': '',
             'REPEAT_SUBMIT_TOKEN': self.__ticket.repeatSubmitToken,
         }
-        response = NetUtils.post(self.__session, url, data=formData,
-                                 headers={'User-Agent': FIREFOX_USER_AGENT, 'Connection': 'keep-alive', }).json()
-        passengersList = response['data']['normal_passengers']
-        return response['status'] if 'status' in response else False, \
-               response['messages'] if 'messages' in response else '无法获取乘客信心，请先进行添加!', \
+        jsonRet = EasyHttp.send(self._urlInfo['getPassengerDTOs'], data=formData)
+        passengersList = jsonRet['data']['normal_passengers']
+        return jsonRet['status'] if 'status' in jsonRet else False, \
+               jsonRet['messages'] if 'messages' in jsonRet else '无法获取乘客信息，请先进行添加!', \
                self.__getPassengerInfo(passengersList)
 
     # passengerName:乘客姓名
     # seatType:座位类别（一等座，二等座····）
     # ticketTypeCodes:车票类别代码
     def _checkOrderInfo(self, passengersDetails, seatType, ticketTypeCodes=1):
-        url = r'https://kyfw.12306.cn/otn/confirmPassenger/checkOrderInfo'
-        # self.__ticket.seatType = seatType
-        # self.__ticket.ticketTypeCodes = ticketTypeCodes
-        # self.passengerDetails = passengerDetails
         formData = {
             'cancel_flag': self.__ticket.ticketInfoForPassengerForm['orderRequestDTO']['cancel_flag'] or '2',
             'bed_level_order_num': self.__ticket.ticketInfoForPassengerForm['orderRequestDTO'][
@@ -143,17 +117,11 @@ class Submit(object):
             '_json_att': '',
             'REPEAT_SUBMIT_TOKEN': self.__ticket.repeatSubmitToken,
         }
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/confirmPassenger/initDc',
-            'Connection': 'keep-alive',
-        }
-        response = NetUtils.post(self.__session, url, formData, headers=headers).json()
-        return response['status'], response['messages'], response['data']['submitStatus'], \
-               response['data']['errMsg'] if 'errMsg' in response['data'] else 'submit falied'
+        jsonRet = EasyHttp.send(self._urlInfo['checkOrderInfo'], data=formData)
+        return jsonRet['status'], jsonRet['messages'], jsonRet['data']['submitStatus'], \
+               jsonRet['data']['errMsg'] if 'errMsg' in jsonRet['data'] else 'submit falied'
 
     def _getQueueCount(self):
-        url = r'https://kyfw.12306.cn/otn/confirmPassenger/getQueueCount'
         formData = {
             # Thu+Jan+04+2018+00:00:00+GMT+0800
             # 'train_date': datetime.strptime(
@@ -174,20 +142,13 @@ class Submit(object):
             '_json_att': '',
             'REPEAT_SUBMIT_TOKEN': self.__ticket.repeatSubmitToken,
         }
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/confirmPassenger/initDc',
-            'Connection': 'keep-alive',
-        }
-        response = NetUtils.post(self.__session, url, data=formData, headers=headers).json()
-        return response['status'], response['messages'], \
-               response['data']['ticket'] if 'data' in response and 'ticket' in response['data'] else -1, \
-               response['data']['count'] if 'data' in response and 'count' in response['data'] else -1
+        jsonRet = EasyHttp.send(self._urlInfo['getQueueCount'], data=formData)
+        return jsonRet['status'], jsonRet['messages'], \
+               jsonRet['data']['ticket'] if 'data' in jsonRet and 'ticket' in jsonRet['data'] else -1, \
+               jsonRet['data']['count'] if 'data' in jsonRet and 'count' in jsonRet['data'] else -1
 
     # network busy usually occured
     def _confirmSingleOrGoForQueue(self, passengersDetails):
-        url = r'https://kyfw.12306.cn/otn/confirmPassenger/confirmGoForQueue' if self.__ticket.tourFlag == TourFlag.GO_BACK \
-            else r'https://kyfw.12306.cn/otn/confirmPassenger/confirmSingleForQueue'
         formData = {
             'passengerTicketStr': TrainUtils.passengerTicketStrs(self.__ticket.seatType, passengersDetails,
                                                                  self.__ticket.ticketTypeCodes),
@@ -205,58 +166,33 @@ class Submit(object):
             '_json_att': '',
             'REPEAT_SUBMIT_TOKEN': self.__ticket.repeatSubmitToken,
         }
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/confirmPassenger/{}'.format(
-                'initWc' if self.__ticket.tourFlag == TourFlag.GO_BACK else 'initDc'),
-            'Connection': 'keep-alive',
-            r'Accept': r'application/json, text/javascript, */*; q=0.01',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Host': 'kyfw.12306.cn',
-            'X-Requested-With': 'XMLHttpRequest',
-        }
-        response = NetUtils.post(self.__session, url, data=formData, headers=headers).json()
-        return response['status'], response['messages'], response['data']['submitStatus'], response['data'][
-            'errMsg'] if 'errMsg' in response['data'] else None
+        jsonRet = EasyHttp.send(self._urlInfo['confirmForQueue'], data=formData)
+        return jsonRet['status'], jsonRet['messages'], jsonRet['data']['submitStatus'], jsonRet['data'][
+            'errMsg'] if 'errMsg' in jsonRet['data'] else None
 
     def _queryOrderWaitTime(self):
-        url = r'https://kyfw.12306.cn/otn/confirmPassenger/queryOrderWaitTime'
         params = {
             'random': '%10d' % (time.time() * 1000),
             'tourFlag': self.__ticket.ticketInfoForPassengerForm['tour_flag'] or 'dc',
             '_json_att': '',
             'REPEAT_SUBMIT_TOKEN': self.__ticket.repeatSubmitToken,
         }
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/confirmPassenger/initDc',
-            'Connection': 'keep-alive',
-        }
-        response = NetUtils.get(self.__session, url, params=params, headers=headers).json()
-        print('queryOrderWaitTime: %s' % response)
-        return response['status'], response['messages'], response['data']['waitTime'], response['data']['orderId'], \
-               response['data']['msg'] if 'msg' in response['data'] else None
+        jsonRet = EasyHttp.send(self._urlInfo['queryOrderWaitTime'], params=params)
+        print('queryOrderWaitTime: %s' % jsonRet)
+        return jsonRet['status'], jsonRet['messages'], jsonRet['data']['waitTime'], jsonRet['data']['orderId'], \
+               jsonRet['data']['msg'] if 'msg' in jsonRet['data'] else None
 
     def _resultOrderForDcOrWcQueue(self, orderSequenceNo):
-        url = r'https://kyfw.12306.cn/otn/confirmPassenger/{}'.format(
-            'resultOrderForWcQueue' if self.__ticket.tourFlag == TourFlag.GO_BACK else 'resultOrderForDcQueue')
         formData = {
             'orderSequence_no': orderSequenceNo,
             '_json_att': '',
             'REPEAT_SUBMIT_TOKEN': self.__ticket.repeatSubmitToken,
         }
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/confirmPassenger/initDc',
-            'Connection': 'keep-alive',
-        }
-        response = NetUtils.post(self.__session, url, data=formData, headers=headers)
-        print('resultOrderForDcOrWcQueue', response.text)
-        response = response.json()
-        return response['status'], response['messages'], response['data']['submitStatus']
+        jsonRet = EasyHttp.send(self._urlInfo['resultOrderForQueue'], data=formData)
+        print('resultOrderForDcOrWcQueue', jsonRet)
+        return jsonRet['status'], jsonRet['messages'], jsonRet['data']['submitStatus']
 
+    # TODO::finish it
     def _payOrderInfo(self):
         url = r'https://kyfw.12306.cn/otn//payOrder/init?random=%10d' % (time.time() * 1000)
         headers = {
@@ -270,12 +206,12 @@ class Submit(object):
     def submit(self):
         status, msg = self._submitOrderRequest(self.__ticket.tourFlag)
         if not Utils.check(status, 'submitOrderRequesst: %s' % msg):
-            return
+            return False
         Log.v('提交订单请求成功!')
 
         status, msg, passengersDetailsList = self._getPassengerDTOs()
         if not Utils.check(status, 'getPassengerDTOs: %s' % msg):
-            return
+            return False
         Log.v('获取乘客信息成功!')
 
         passengersDetails = []
@@ -286,29 +222,30 @@ class Submit(object):
                                                                  self.__ticket.ticketTypeCodes)
         if not Utils.check(status, 'checkOrderInfo: %s' % msg) or not Utils.check(submitStatus,
                                                                                   'checkOrderInfo: %s' % errMsg):
-            return
+            return False
         Log.v('校验订单信息成功!')
 
         status, msg, leftTickets, personsCount = self._getQueueCount()
         if not Utils.check(status, 'getQueueCount: %s' % msg):
-            return
+            return False
         Log.v('%s 剩余车票:%s ,目前排队人数: %s' % (self.__ticket.trainNo, leftTickets, personsCount))
         status, msg, submitStatus, errMsg = self._confirmSingleOrGoForQueue(passengersDetails)
         if not Utils.check(status, 'confirmSingleOrGoForQueue: %s' % msg) \
                 or not Utils.check(submitStatus, 'confirmSingleOrGoForQueue: %s' % errMsg or '订单信息提交失败！'):
-            return
+            return False
 
         orderId = self.__waitForOrderId()
         if not Utils.check(orderId, '订单获取失败！'):
-            return
+            return False
 
         status, msg, submitStatus = self._resultOrderForDcOrWcQueue(orderId)
         if not Utils.check(status, 'resultOrderForDcOrWcQueue: %s' % msg):
-            return
+            return False
         if not submitStatus:
             Log.e('订单提交失败！')
-            return
+            return False
         Log.v('您已成功订购火车票！请在30分钟内前往12306官方网站进行支付！')
+        return True
 
     def __waitForOrderId(self):
         Log.v('正在排队获取订单!')
@@ -324,7 +261,7 @@ class Submit(object):
                     Log.v('订单提交成功，订单号: %s' % orderId)
                     return orderId
                 elif errorMsg:
-                    Log.v(errorMsg)
+                    Log.e(errorMsg)
                     return None
             Log.w('订单提交正在入队...')
             time.sleep(3)

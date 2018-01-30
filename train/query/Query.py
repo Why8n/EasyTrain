@@ -3,10 +3,13 @@ import random
 import time
 from prettytable import PrettyTable
 
+from Configure import QUERY_TICKET_REFERSH_INTERVAL
 from define.CityCode import city2code, code2city
 from define.Const import PASSENGER_TYPE_ADULT, SEAT_TYPE
+from define.UrlsConf import queryUrls
 from define.UserAgent import USER_AGENT, FIREFOX_USER_AGENT
 from net import NetUtils
+from net.NetUtils import EasyHttp
 from train.TicketDetails import TicketDetails
 from colorama import Fore
 from utils.Log import Log
@@ -64,43 +67,24 @@ INDEX_START_DATE = 13  # 车票出发日期
 
 
 class Query(object):
-    __url = r'https://kyfw.12306.cn/otn/leftTicket/queryZ'
-
-    def __query(trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT):
+    @staticmethod
+    def query(trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT):
         params = {
             r'leftTicketDTO.train_date': trainDate,
             r'leftTicketDTO.from_station': city2code(fromStation),
             r'leftTicketDTO.to_station': city2code(toStation),
             r'purpose_codes': passengerType
         }
-        response = NetUtils.normalGet(Query.__url, params=params,
-                                      headers={'User-Agent': random.choice(USER_AGENT)}).json()
-        response = response['data'] if 'data' in response else Log.e("can not find key: 'data'")
-        queryResults = response['result'] if 'result' in response else Log.e("can not find key: 'result'")
-        return Query.__decode(queryResults, passengerType)
+        jsonRet = EasyHttp.send(queryUrls['query'], params=params)
+        try:
+            if jsonRet:
+                return Query.__decode(jsonRet['data']['result'], passengerType)
+        except Exception as e:
+            Log.e(e)
+        return []
 
-    def query(session, trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT):
-        params = {
-            r'leftTicketDTO.train_date': trainDate,
-            r'leftTicketDTO.from_station': city2code(fromStation),
-            r'leftTicketDTO.to_station': city2code(toStation),
-            r'purpose_codes': passengerType
-        }
-        # response = NetUtil.normalGet(Query.__url, params=params, headers={'User-Agent': random.choice(USER_AGENT)}).json()
-        headers = {
-            'User-Agent': FIREFOX_USER_AGENT,
-            'Referer': r'https://kyfw.12306.cn/otn/leftTicket/init',
-            'Connection': 'keep-alive',
-        }
-        response = NetUtils.get(session, Query.__url, params=params, headers=headers, verify=False)
-        print(response.text)
-        response = response.json()
-        response = response['data'] if 'data' in response else Log.e("can not find key: 'data'")
-        queryResults = response['result'] if 'result' in response else Log.e("can not find key: 'result'")
-        return Query.__decode(queryResults, passengerType)
-
+    @staticmethod
     def __decode(queryResults, passengerType):
-        # tickets = []
         for queryResult in queryResults:
             info = queryResult.split('|')
             ticket = TicketDetails()
@@ -132,13 +116,14 @@ class Query(object):
             ticket.secretStr = info[INDEX_SECRET_STR]
             ticket.startDate = info[INDEX_START_DATE]
             yield ticket
-            # tickets.append(ticket)
-            # return tickets
 
+    @staticmethod
     def outputPretty(trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT):
         table = PrettyTable()
         table.field_names = '车次 车站 时间 历时 商务特等座 一等座 二等座 高级软卧 软卧 动卧 硬卧 软座 硬座 无座 其他 备注'.split(sep=' ')
-        for ticket in Query.__query(trainDate, fromStation, toStation, passengerType):
+        for ticket in Query.query(trainDate, fromStation, toStation, passengerType):
+            if not ticket:
+                continue
             table.add_row([ticket.trainNo,
                            '\n'.join([Fore.GREEN + ticket.fromStation + Fore.RESET,
                                       Fore.RED + ticket.toStation + Fore.RESET]),
@@ -161,29 +146,31 @@ class Query(object):
                           )
         print(table)
 
-    def querySpec(session, trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT,
+    @staticmethod
+    def querySpec(trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT,
                   seatTypes=[SEAT_TYPE[key] for key in SEAT_TYPE]):
-        for ticket in Query.query(session, trainDate, fromStation, toStation, passengerType):
+        for ticket in Query.query(trainDate, fromStation, toStation, passengerType):
             for seatTypeName, seatTypeProperty in TrainUtils.seatWhich(seatTypes, ticket):
                 if seatTypeProperty and seatTypeProperty != '无':
                     Log.v('%s: %s' % (seatTypeName, seatTypeProperty))
                     ticket.seatType = SEAT_TYPE[seatTypeName]
                     yield ticket
-        return None
+        return []
 
-    def loopQuery(session, trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT,
-                  seatTypes=[SEAT_TYPE[key] for key in SEAT_TYPE]):
+    @staticmethod
+    def loopQuery(trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT,
+                  seatTypes=[SEAT_TYPE[key] for key in SEAT_TYPE],timeInterval=QUERY_TICKET_REFERSH_INTERVAL):
         count = 0
         while True:
             count += 1
             Log.v('正在为您刷票: %d 次' % count)
-            for ticketDetails in Query.querySpec(session, trainDate, fromStation, toStation, passengerType, seatTypes):
+            for ticketDetails in Query.querySpec(trainDate, fromStation, toStation, passengerType, seatTypes):
                 if ticketDetails:
                     return ticketDetails
-            time.sleep(5)
+            time.sleep(timeInterval)
 
 
 if __name__ == "__main__":
     # for ticket in Query.query('2017-12-31', '深圳北', '潮汕'):
     #     print(ticket)
-    Query.outputPretty('2018-01-18', '潮汕', '深圳北')
+    Query.outputPretty('2018-02-27', '潮汕', '深圳北')

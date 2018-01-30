@@ -6,4 +6,4 @@ def saveFile(fileName, data):
 def saveBinary(fileName, data):
     with open(fileName, 'wb') as file:
         file.write(data)
-    return file
+    return file.name

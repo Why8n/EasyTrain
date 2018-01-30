@@ -239,7 +239,7 @@ class TicketDetails(object):
         self._startDate = value
 
     def __str__(self):
-        return '[车次:%s,出发站:%s,终点站:%s,出发时间:%s,到达时间:%s]' % (self._trainNo, self._fromStation,
+        return '[车次:%s,出发站:%s,到达站:%s,出发时间:%s,到达时间:%s]' % (self._trainNo, self._fromStation,
                                                           self._toStation, self._leaveTime, self._arriveTime)
 
     __repr__ = __str__
