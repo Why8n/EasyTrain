@@ -1,16 +1,9 @@
-from pprint import pprint
-
-import requests
-import time
-
 from define.Const import TYPE_LOGIN_NORMAL_WAY, TYPE_LOGIN_OTHER_WAY
-from define.UserAgent import FIREFOX_USER_AGENT
-from net import NetUtils
+from define.UrlsConf import loginUrls
+from net.NetUtils import EasyHttp
 from train.login.Capthca import Captcha
 from utils import Utils
 from utils.Log import Log
-from net.NetUtils import EasyHttp
-from define.UrlsConf import loginUrls
 
 
 class Login(object):
@@ -127,4 +120,4 @@ class Login(object):
 
 
 if __name__ == '__main__':
-    print(Login(requests.session()).login('1041755134@qq.com', 'cylwin199111811'))
+    pass

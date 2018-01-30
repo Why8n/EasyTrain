@@ -1,19 +1,16 @@
-import random
-
 import time
+
+from colorama import Fore
 from prettytable import PrettyTable
 
 from Configure import QUERY_TICKET_REFERSH_INTERVAL
 from define.CityCode import city2code, code2city
 from define.Const import PASSENGER_TYPE_ADULT, SEAT_TYPE
 from define.UrlsConf import queryUrls
-from define.UserAgent import USER_AGENT, FIREFOX_USER_AGENT
-from net import NetUtils
 from net.NetUtils import EasyHttp
 from train.TicketDetails import TicketDetails
-from colorama import Fore
-from utils.Log import Log
 from utils import TrainUtils
+from utils.Log import Log
 
 #  车次：3
 INDEX_TRAIN_NO = 3

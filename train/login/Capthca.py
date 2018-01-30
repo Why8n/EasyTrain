@@ -1,12 +1,9 @@
 from io import BytesIO
 
-import os
 from PIL import Image
 
 from define.Const import TYPE_LOGIN_NORMAL_WAY, TYPE_LOGIN_OTHER_WAY
 from define.UrlsConf import loginUrls
-from define.UserAgent import FIREFOX_USER_AGENT
-from net import NetUtils
 from net.NetUtils import EasyHttp
 from train.login import damatuWeb
 from utils import FileUtils
