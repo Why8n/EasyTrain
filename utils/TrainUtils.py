@@ -2,6 +2,8 @@
 # ticket_type_codes:ticketInfoForPassengerForm['limitBuySeatTicketDTO']['ticket_type_codes']:(成人票:1,儿童票:2,学生票:3,残军票:4)
 import urllib
 
+from colorama import Fore
+
 from define.Const import SEAT_TYPE, SeatName, PASSENGER_TICKET_TYPE_CODE_TO_DESC
 
 
@@ -76,3 +78,56 @@ def seatWhich(seatTypes, ticketDetails):
 
 def passengerType2Desc(passengerTypeCode):
     return PASSENGER_TICKET_TYPE_CODE_TO_DESC.get(passengerTypeCode)
+
+
+# 订单信息：车次信息
+def submitTrainInfo(ticketIndex, jsonTicketInfo, orderDBListIndex=0):
+    return '%s开\n%s %s-%s' % (
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['start_train_date_page'],
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['stationTrainDTO'][
+            'station_train_code'],
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['stationTrainDTO']['from_station_name'],
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['stationTrainDTO']['to_station_name'],
+    )
+
+
+# 订单信息：席位信息
+def submitCoachInfo(ticketIndex, jsonTicketInfo, orderDBListIndex=0):
+    return '%s车厢\n%s%s' % (
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['coach_no'],
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['seat_name'],
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['seat_type_name'],
+    )
+
+
+# 订单信息：旅客信息
+def submitPassengerInfo(ticketIndex, jsonTicketInfo, orderDBListIndex=0):
+    return '%s\n%s' % (
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['passengerDTO']['passenger_name'],
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['passengerDTO'][
+            'passenger_id_type_name'],
+    )
+
+
+# 订单信息：票款金额
+def submitTicketCostInfo(ticketIndex, jsonTicketInfo, orderDBListIndex=0):
+    return '%s%s元' % (
+        jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['ticket_type_name'],
+        Fore.YELLOW + jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex][
+            'str_ticket_price_page'] + Fore.RESET,
+    )
+
+
+# 订单信息：车票状态
+def submitTicketPayInfo(ticketIndex, jsonTicketInfo, orderDBListIndex=0):
+    return jsonTicketInfo['orderDBList'][orderDBListIndex]['tickets'][ticketIndex]['ticket_status_name']
+
+
+# 订单信息：车票总张数
+def submitTicketTotalNum(jsonTicketInfo, orderDBListIndex=0):
+    return jsonTicketInfo['orderDBList'][orderDBListIndex]['ticket_totalnum']
+
+
+# 订单信息：车票总价
+def submitTicketTotalCost(jsonTicketInfo, orderDBListIndex=0):
+    return jsonTicketInfo['orderDBList'][orderDBListIndex]['ticket_total_price_page']

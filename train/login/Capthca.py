@@ -17,7 +17,7 @@ class Captcha(object):
 
     def getCaptcha(self, type=TYPE_LOGIN_NORMAL_WAY):
         urlInfo = loginUrls['other']['captcha'] if type == TYPE_LOGIN_OTHER_WAY else loginUrls['normal']['captcha']
-        print('catpchatImgURL: %s' % urlInfo['url'])
+        Log.v('正在获取验证码..')
         return EasyHttp.send(urlInfo)
 
     def check(self, results, type=TYPE_LOGIN_NORMAL_WAY):

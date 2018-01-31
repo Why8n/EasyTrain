@@ -12,8 +12,10 @@ def main():
     login = Login()
     Log.v('正在登录...')
     result, msg = login.login(USER_NAME, USER_PWD)
-    if Utils.check(result, msg):
-        Log.v('%s,登录成功' % msg)
+    if not Utils.check(result, msg):
+        Log.e(msg)
+        return
+    Log.v('%s,登录成功' % msg)
 
     seatTypesCode = SEAT_TYPE_CODE if SEAT_TYPE_CODE else [SEAT_TYPE[key] for key in SEAT_TYPE.keys()]
     passengerTypeCode = PASSENGER_TYPE_CODE if PASSENGER_TYPE_CODE else '1'
@@ -30,6 +32,7 @@ def main():
             ticketDetails.tourFlag = TOUR_FLAG if TOUR_FLAG else 'dc'
             submit = Submit(ticketDetails)
             if submit.submit():
+                submit.showSubmitInfoPretty()
                 break
         except Exception as e:
             Log.w('exception occured,now retrying...')

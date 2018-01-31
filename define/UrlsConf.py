@@ -7,8 +7,9 @@ loginUrls = {
             'method': 'GET',
             'headers': {
                 'Accept': r'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Referer': r'https://kyfw.12306.cn/otn/index/initMy12306',
-            }
+                'Referer': r'https://kyfw.12306.cn/otn/leftTicket/init',
+            },
+            'response': 'html',
         },
         'uamtk': {
             'url': r'https://kyfw.12306.cn/passport/web/auth/uamtk',
@@ -47,11 +48,13 @@ loginUrls = {
             'headers': {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Referer': 'https://kyfw.12306.cn/otn/login/init',
-            }
+            },
+            'response': 'html',
         },
         'userLoginRedirect': {
             'url': r'https://kyfw.12306.cn/otn/passport?redirect=/otn/login/userLogin',
             'method': 'GET',
+            'response': 'html',
         },
         'uamauthclient': {
             'url': r'https://kyfw.12306.cn/otn/uamauthclient',
@@ -72,7 +75,8 @@ loginUrls = {
             'method': 'GET',
             'headers': {
                 'Referer': r'https://kyfw.12306.cn/otn/index/initMy12306',
-            }
+            },
+            'response': 'html',
         },
 
     },
@@ -85,7 +89,8 @@ loginUrls = {
                 'Accept': r'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 r'Content-Type': r'application/x-www-form-urlencoded',
                 'Referer': r'https://kyfw.12306.cn/otn/leftTicket/init',
-            }
+            },
+            'response': 'html',
         },
         'uamtk': {
             'url': r'https://kyfw.12306.cn/passport/web/auth/uamtk',
@@ -126,7 +131,8 @@ loginUrls = {
                 r'Content-Type': r'application/x-www-form-urlencoded',
                 'Host': r'kyfw.12306.cn',
                 'Referer': r'https://kyfw.12306.cn/otn/leftTicket/init',
-            }
+            },
+            'response': 'html',
         },
     },
 }
@@ -196,6 +202,13 @@ submitUrls = {
                 'Referer': r'https://kyfw.12306.cn/otn/confirmPassenger/initDc',
             },
         },
+        'queryMyOrderNoComplete': {
+            'url': r'https://kyfw.12306.cn/otn/queryOrder/queryMyOrderNoComplete',
+            'method': 'POST',
+            'headers': {
+                'Referer': r'https://kyfw.12306.cn/otn/queryOrder/initNoComplete',
+            },
+        }
 
     },
     'wc': {
@@ -253,6 +266,13 @@ submitUrls = {
                 'Referer': r'https://kyfw.12306.cn/otn/confirmPassenger/initWc',
             },
         },
+        'queryMyOrderNoComplete': {
+            'url': r'https://kyfw.12306.cn/otn/queryOrder/queryMyOrderNoComplete',
+            'method': 'POST',
+            'headers': {
+                'Referer': r'https://kyfw.12306.cn/otn/queryOrder/initNoComplete',
+            },
+        }
 
     }
 }

@@ -1,9 +1,26 @@
+import time
+
 from define.Const import TYPE_LOGIN_NORMAL_WAY, TYPE_LOGIN_OTHER_WAY
 from define.UrlsConf import loginUrls
 from net.NetUtils import EasyHttp
 from train.login.Capthca import Captcha
 from utils import Utils
 from utils.Log import Log
+from Configure import USER_PWD,USER_NAME
+
+
+def loginLogic(func):
+    def wrapper(*args, **kw):
+        reslut = False
+        msg = ''
+        for count in range(3):
+            reslut, msg = func(*args, **kw)
+            if reslut:
+                break
+            Log.w(msg)
+        return reslut, msg
+
+    return wrapper
 
 
 class Login(object):
@@ -49,6 +66,7 @@ class Login(object):
                 return result, msg
         return False, '登录失败'
 
+    @loginLogic
     def _login(self, userName, userPwd, type=TYPE_LOGIN_NORMAL_WAY):
         if type == TYPE_LOGIN_OTHER_WAY:
             self._urlInfo = loginUrls['other']
@@ -69,10 +87,13 @@ class Login(object):
         jsonRet = EasyHttp.send(self._urlInfo['login'], data=payload)
 
         def isLoginSuccess(responseJson):
-            return 0 == responseJson['result_code'] if responseJson and 'result_code' in responseJson else False
+            return 0 == responseJson['result_code'] if responseJson and 'result_code' in responseJson else False, \
+                   responseJson[
+                       'result_message'] if responseJson and 'result_message' in responseJson else 'login failed'
 
-        if not isLoginSuccess(jsonRet):
-            return False, 'login failed'
+        result, msg = isLoginSuccess(jsonRet)
+        if not result:
+            return False, msg
         # self._userLogin()
         self._passportRedirect()
         result, msg, apptk = self._uamtk()
@@ -90,7 +111,6 @@ class Login(object):
             'userDTO.password': userPwd,
             'randCode': results,
         }
-        print('loginUrl:%s' % self._urlInfo['login']['url'])
         jsonRet = EasyHttp.send(self._urlInfo['login'], data=formData)
         print('loginAsyncSuggest: %s' % jsonRet)
 
@@ -120,4 +140,7 @@ class Login(object):
 
 
 if __name__ == '__main__':
-    pass
+    login = Login()
+    login.login(USER_NAME,USER_PWD)
+    time.sleep(3)
+    print(login.loginOut())

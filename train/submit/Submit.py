@@ -6,6 +6,8 @@ import re
 import time
 from datetime import datetime
 
+from colorama import Fore
+
 from define.Const import TourFlag
 from define.UrlsConf import submitUrls
 from define.UserAgent import FIREFOX_USER_AGENT
@@ -247,6 +249,37 @@ class Submit(object):
         Log.v('您已成功订购火车票！请在30分钟内前往12306官方网站进行支付！')
         return True
 
+    def _queryMyOrderNoComplete(self):
+        formData = {
+            '_json_att': '',
+        }
+        jsonRet = EasyHttp.send(self._urlInfo['queryMyOrderNoComplete'], data=formData)
+        return jsonRet['status'], jsonRet['messages'], jsonRet['data']
+
+    def showSubmitInfoPretty(self):
+        jsonTicketInfo = self._queryMyOrderNoComplete()
+        from prettytable import PrettyTable
+        table = PrettyTable()
+        table.field_names = '序号 车次信息 席位信息 旅客信息 票款金额 车票状态'.split(sep=' ')
+        totalTicketNum = TrainUtils.submitTicketTotalNum(jsonTicketInfo)
+        for i in range(totalTicketNum):
+            table.add_row([i + 1,
+                           TrainUtils.submitTrainInfo(i, jsonTicketInfo),
+                           TrainUtils.submitCoachInfo(i, jsonTicketInfo),
+                           TrainUtils.submitPassengerInfo(i, jsonTicketInfo),
+                           TrainUtils.submitTicketCostInfo(i, jsonTicketInfo),
+                           TrainUtils.submitTicketPayInfo(i, jsonTicketInfo),
+                           ])
+            if not i == totalTicketNum - 1:
+                table.add_row([2 * '-', 2 * '-', 2 * '-', 2 * '-', 2 * '-', 2 * '-'])
+
+        print(table)
+        Log.v('总张数:%d\t待支付金额:%s' % (
+            totalTicketNum, Fore.YELLOW + '{}元'.format(TrainUtils.submitTicketTotalCost(jsonTicketInfo)) + Fore.RESET))
+
+    def showSubmitInfo(self):
+        return self._queryMyOrderNoComplete()
+
     def __waitForOrderId(self):
         Log.v('正在排队获取订单!')
         count = 0
@@ -263,6 +296,6 @@ class Submit(object):
                 elif errorMsg:
                     Log.e(errorMsg)
                     return None
-            Log.w('订单提交正在入队...')
+            Log.w('未出票，订单排队中...预估等待时间: %d 分钟' % (waitTime // 60))
             time.sleep(3)
         return None
