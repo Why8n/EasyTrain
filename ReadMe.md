@@ -10,12 +10,12 @@ Usage
 Notice
 -------------
 需要额外安装的第三方库:
-[requests](https://github.com/requests/requests)
-[Pillow](https://github.com/python-pillow/Pillow)
-[PrettyTable](https://github.com/lmaurits/prettytable)
-[colorama](https://github.com/tartley/colorama)
+* [requests](https://github.com/requests/requests)
+* [Pillow](https://github.com/python-pillow/Pillow)
+* [PrettyTable](https://github.com/lmaurits/prettytable)
+* [colorama](https://github.com/tartley/colorama)
 
 **注:**
-登录模块分析可查看:[12306之登录流程解析](https://www.jianshu.com/p/ca93eba60609)
-查询模块分析可查看:[12306之余票查询流程解析](https://www.jianshu.com/p/89f6170991c8)
-下单模块分析可查看:[12306之下单流程解析](https://www.jianshu.com/p/6b1f94e32713)
+* 登录模块分析可查看:[12306之登录流程解析](https://www.jianshu.com/p/ca93eba60609)
+* 查询模块分析可查看:[12306之余票查询流程解析](https://www.jianshu.com/p/89f6170991c8)
+* 下单模块分析可查看:[12306之下单流程解析](https://www.jianshu.com/p/6b1f94e32713)
