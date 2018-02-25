@@ -35,8 +35,7 @@ def main():
                 submit.showSubmitInfoPretty()
                 break
         except Exception as e:
-            Log.w('exception occured,now retrying...')
-            # traceback.print_exc()
+            Log.w(e)
     print(login.loginOut())
 
 
