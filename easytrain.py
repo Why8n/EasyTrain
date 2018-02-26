@@ -24,7 +24,9 @@ def main():
         try:
             print('-' * 40)
             ticketDetails = Query.loopQuery(TRAIN_DATE, FROM_STATION, TO_STATION,
-                                            TrainUtils.passengerType2Desc(passengerTypeCode), seatTypesCode)
+                                            TrainUtils.passengerType2Desc(passengerTypeCode),
+                                            TRAINS_NO,
+                                            seatTypesCode)
             Log.v('已为您查询到可用余票:%s' % ticketDetails)
 
             ticketDetails.passengersId = PASSENGERS_ID

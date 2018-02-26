@@ -131,3 +131,14 @@ def submitTicketTotalNum(jsonTicketInfo, orderDBListIndex=0):
 # 订单信息：车票总价
 def submitTicketTotalCost(jsonTicketInfo, orderDBListIndex=0):
     return jsonTicketInfo['orderDBList'][orderDBListIndex]['ticket_total_price_page']
+
+
+# 过滤车次
+def filterTrain(ticketDetails, trainsNo=[]):
+    if not trainsNo:
+        return True
+    for trainNo in trainsNo:
+        if trainNo == ticketDetails.trainNo:
+            return True
+    return False
+

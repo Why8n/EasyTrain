@@ -144,9 +144,13 @@ class Query(object):
         print(table)
 
     @staticmethod
-    def querySpec(trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT,
+    def querySpec(trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT, trainsNo=[],
                   seatTypes=[SEAT_TYPE[key] for key in SEAT_TYPE]):
         for ticket in Query.query(trainDate, fromStation, toStation, passengerType):
+            # filter trainNo
+            if not TrainUtils.filterTrain(ticket, trainsNo):
+                continue
+            # filter seat
             for seatTypeName, seatTypeProperty in TrainUtils.seatWhich(seatTypes, ticket):
                 if seatTypeProperty and seatTypeProperty != '无':
                     Log.v('%s: %s' % (seatTypeName, seatTypeProperty))
@@ -155,13 +159,13 @@ class Query(object):
         return []
 
     @staticmethod
-    def loopQuery(trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT,
-                  seatTypes=[SEAT_TYPE[key] for key in SEAT_TYPE],timeInterval=QUERY_TICKET_REFERSH_INTERVAL):
+    def loopQuery(trainDate, fromStation, toStation, passengerType=PASSENGER_TYPE_ADULT, trainsNo=[],
+                  seatTypes=[SEAT_TYPE[key] for key in SEAT_TYPE], timeInterval=QUERY_TICKET_REFERSH_INTERVAL):
         count = 0
         while True:
             count += 1
             Log.v('正在为您刷票: %d 次' % count)
-            for ticketDetails in Query.querySpec(trainDate, fromStation, toStation, passengerType, seatTypes):
+            for ticketDetails in Query.querySpec(trainDate, fromStation, toStation, passengerType, trainsNo, seatTypes):
                 if ticketDetails:
                     return ticketDetails
             time.sleep(timeInterval)
@@ -171,3 +175,4 @@ if __name__ == "__main__":
     # for ticket in Query.query('2017-12-31', '深圳北', '潮汕'):
     #     print(ticket)
     Query.outputPretty('2018-02-27', '潮汕', '深圳北')
+
