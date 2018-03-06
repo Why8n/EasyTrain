@@ -220,7 +220,7 @@ class Submit(object):
         for id in self.__ticket.passengersId:
             passengersDetails.append(passengersDetailsList.get(id))
 
-        # time.sleep(0.5)
+        time.sleep(1)
         status, msg, submitStatus, errMsg = self._checkOrderInfo(passengersDetails, self.__ticket.seatType,
                                                                  self.__ticket.ticketTypeCodes)
         if not Utils.check(status, 'checkOrderInfo: %s' % msg) or not Utils.check(submitStatus,
