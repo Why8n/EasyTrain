@@ -1,3 +1,5 @@
+import time
+
 from Configure import *
 from define.Const import SEAT_TYPE
 from train.login.Login import Login
@@ -36,6 +38,7 @@ def main():
             if submit.submit():
                 submit.showSubmitInfoPretty()
                 break
+            time.sleep(1)
         except Exception as e:
             Log.w(e)
     print(login.loginOut())
