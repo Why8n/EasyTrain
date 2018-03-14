@@ -8,6 +8,7 @@ from datetime import datetime
 
 from colorama import Fore
 
+from Configure import CHOOSE_SEATS
 from define.Const import TourFlag
 from define.UrlsConf import submitUrls
 from define.UserAgent import FIREFOX_USER_AGENT
@@ -160,7 +161,7 @@ class Submit(object):
             'key_check_isChange': self.__ticket.ticketInfoForPassengerForm['key_check_isChange'],
             'leftTicketStr': self.__ticket.ticketInfoForPassengerForm['leftTicketStr'],
             'train_location': self.__ticket.ticketInfoForPassengerForm['train_location'],
-            'choose_seats': '',  # todo::how to choose seats
+            'choose_seats': ''.join(CHOOSE_SEATS) or '',
             'seatDetailType': '000',  # todo::make clear 000 comes from
             'whatsSelect': '1',
             'roomType': '00',  # todo::make clear this value comes from

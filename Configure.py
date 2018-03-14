@@ -21,6 +21,8 @@ TRAINS_NO = []
 SEAT_TYPE_CODE = ['M', 'O', '4', '3', '2', '1']
 # 购票人类别（成人票:1,儿童票:2,学生票:3,残军票:4）
 PASSENGER_TYPE_CODE = '1'
+# 座位选择 eg:['1A','2A'],有多少张票就填多少个,其中，A靠窗，B中间，C过道,D过道,F靠窗
+CHOOSE_SEATS = []
 
 # 刷票间隔(单位:s)
 QUERY_TICKET_REFERSH_INTERVAL = 5
